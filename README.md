@@ -31,9 +31,9 @@
 
 ## TODO
 
-* [ ] Make display sync work for Linux (Wayland) and macOS (WIP).
+* [x] Make display sync work for Linux (Wayland) and macOS (WIP).
 * [ ] Add additional sync modes.
-* [ ] Add support for multiple devices (WIP).
+* [x] Add support for multiple devices (WIP).
 * [ ] Add documentation
 * [ ] Support for basic color control.
 
