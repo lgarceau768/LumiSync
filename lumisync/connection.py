@@ -73,7 +73,7 @@ def send(server: socket.socket, device: Dict[str, Any], data: Dict[str, Any]) ->
     """Sends some data from the server to a device."""
     server.sendto(
         bytes(json.dumps(data), "utf-8"),
-        (device["ip"], device.get("Device_Port", 4003)),
+        (device["ip"], device.get("port", 4001)),
     )
 
 

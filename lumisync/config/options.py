@@ -16,7 +16,7 @@ def _detect_compositor() -> str:
 
 
 # TODO: Should the led option be moved under a different global?
-GENERAL = SimpleNamespace(nled=20, platform=platform.system(), compositor=None)
+GENERAL = SimpleNamespace(nled=4, platform=platform.system(), compositor=None, color_rotation=0)
 if GENERAL.platform != "Windows":
     GENERAL.compositor = _detect_compositor()
 

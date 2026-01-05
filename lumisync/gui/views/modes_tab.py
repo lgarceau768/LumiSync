@@ -240,6 +240,31 @@ class ModesTab(BaseFrame):
             row=0, column=2, padx=(0, MEDIUM_PAD), sticky="e"
         )
 
+        # Add color rotation control
+        rotation_frame = ctk.CTkFrame(monitor_frame)
+        rotation_frame.grid(
+            row=3, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="ew"
+        )
+        rotation_frame.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+
+        rotation_label = ctk.CTkLabel(rotation_frame, text="Color Rotation:")
+        rotation_label.grid(row=0, column=0, padx=(MEDIUM_PAD, 0), sticky="w")
+
+        # Get current rotation value
+        current_rotation = self.sync_controller.get_color_rotation()
+        self.rotation_var = ctk.IntVar(value=current_rotation)
+
+        # Create radio buttons for each rotation option
+        for col, (angle, label_text) in enumerate([(0, "0°"), (90, "90°"), (180, "180°"), (270, "270°")], 1):
+            radio_btn = ctk.CTkRadioButton(
+                rotation_frame,
+                text=label_text,
+                variable=self.rotation_var,
+                value=angle,
+                command=self.update_color_rotation,
+            )
+            radio_btn.grid(row=0, column=col, padx=MEDIUM_PAD // 2, sticky="w")
+
         monitor_button = ctk.CTkButton(
             monitor_frame,
             text="Start Monitor Sync",
@@ -253,7 +278,7 @@ class ModesTab(BaseFrame):
             ),
             compound="left",
         )
-        monitor_button.grid(row=3, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD)
+        monitor_button.grid(row=4, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD)
 
         # Music Sync
         music_frame = ctk.CTkFrame(modes_frame)
@@ -343,6 +368,12 @@ class ModesTab(BaseFrame):
 
         # Directly update the label ourselves
         self.music_brightness_value.configure(text=f"{int(value * 100)}%")
+
+    def update_color_rotation(self):
+        """Update color rotation setting."""
+        rotation = self.rotation_var.get()
+        self.sync_controller.set_color_rotation(rotation)
+        self.app.set_status(f"Color rotation set to {rotation}°")
 
     def create_sync_controls(self):
         """Create the synchronization controls section."""

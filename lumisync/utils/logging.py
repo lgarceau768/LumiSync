@@ -25,13 +25,14 @@ def get_logs_directory():
 
     return logs_dir
 
-def setup_logger(name, level=logging.INFO, max_size=10485760, backup_count=5):
+def setup_logger(name, level=None, max_size=10485760, backup_count=5):
     """
     Set up and configure a logger.
 
     Args:
         name: Name of the logger
-        level: Logging level (default: INFO)
+        level: Logging level (default: Read from LOG_LEVEL env var, or WARNING)
+               Supported values: DEBUG, INFO, WARNING, ERROR, CRITICAL
         max_size: Maximum size of log file before rotation in bytes (default: 10MB)
         backup_count: Number of backup files to keep (default: 5)
 
@@ -41,6 +42,18 @@ def setup_logger(name, level=logging.INFO, max_size=10485760, backup_count=5):
     # If logger with this name already exists, return it
     if name in _loggers:
         return _loggers[name]
+
+    # Determine logging level from parameter or environment variable
+    if level is None:
+        log_level_str = os.getenv("LOG_LEVEL", "WARNING").upper()
+        level_map = {
+            "DEBUG": logging.DEBUG,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "ERROR": logging.ERROR,
+            "CRITICAL": logging.CRITICAL,
+        }
+        level = level_map.get(log_level_str, logging.WARNING)
 
     # Create logger
     logger = logging.getLogger(name)

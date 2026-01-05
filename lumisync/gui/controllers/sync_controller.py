@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Optional
 if platform.system() == "Windows":
     from pythoncom import CoInitializeEx, CoUninitialize
 
-from ... import connection, devices
+from ... import connection, devices, utils
 from ...config.options import AUDIO, BRIGHTNESS, COLORS, GENERAL
 from ...sync import monitor, music
 
@@ -33,6 +33,7 @@ class SyncController:
         self.current_sync_mode = None
         self.server = None
         self.selected_device = None
+        self.all_devices = []  # List of all devices for syncing
 
         # Initialize brightness settings from config
         self.monitor_brightness = BRIGHTNESS.monitor
@@ -42,16 +43,18 @@ class SyncController:
         self._init_device()
 
     def _init_device(self):
-        """Initialize with available device if any."""
+        """Initialize with available devices."""
         try:
             settings = devices.get_data()
             if settings["devices"] and len(settings["devices"]) > 0:
+                self.all_devices = settings["devices"]
                 self.selected_device = settings["devices"][settings["selectedDevice"]]
+                device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
                 self.set_status(
-                    f"Selected device: {self.selected_device.get('model', 'Unknown')}"
+                    f"Loaded {len(self.all_devices)} device(s): {device_names}"
                 )
         except Exception as e:
-            self.set_status(f"Error initializing device: {str(e)}")
+            self.set_status(f"Error initializing devices: {str(e)}")
 
     def set_status(self, message: str) -> None:
         """Set the status message."""
@@ -94,6 +97,44 @@ class SyncController:
         """Get brightness for music sync mode."""
         return self.music_brightness
 
+    def set_color_rotation(self, rotation: int) -> None:
+        """Set color rotation for LED positioning.
+
+        Args:
+            rotation: Rotation angle in degrees (0, 90, 180, 270)
+        """
+        if rotation not in (0, 90, 180, 270):
+            logger.warning(f"Invalid rotation angle {rotation}°, using 0°")
+            rotation = 0
+
+        from lumisync.config.options import GENERAL
+
+        GENERAL.color_rotation = rotation
+
+        # Update settings.json
+        try:
+            import json
+            import time
+
+            with open("settings.json", "r") as f:
+                settings = json.load(f)
+
+            settings["color_rotation"] = rotation
+            settings["time"] = time.time()
+
+            with open("settings.json", "w") as f:
+                json.dump(settings, f, indent=2)
+
+            logger.info(f"Color rotation set to {rotation}°")
+        except Exception as e:
+            logger.error(f"Error saving color rotation: {e}")
+
+    def get_color_rotation(self) -> int:
+        """Get current color rotation setting."""
+        from lumisync.config.options import GENERAL
+
+        return GENERAL.color_rotation
+
     def _ensure_server(self):
         """Ensure we have an active server connection."""
         if self.server is None:
@@ -121,10 +162,17 @@ class SyncController:
         return self.selected_device
 
     def start_monitor_sync(self) -> None:
-        """Start monitor synchronization."""
-        device = self.get_selected_device()
-        if device is None:
-            self.set_status("No device selected. Please select a device first.")
+        """Start monitor synchronization to all devices."""
+        # Reload devices to ensure we have the latest list
+        try:
+            settings = devices.get_data()
+            self.all_devices = settings["devices"]
+        except Exception as e:
+            self.set_status(f"Error loading devices: {str(e)}")
+            return
+
+        if not self.all_devices:
+            self.set_status("No devices available. Please discover devices first.")
             return
 
         if self.sync_thread and self.sync_thread.is_alive():
@@ -140,80 +188,110 @@ class SyncController:
 
         def sync_task():
             try:
-                # Enable Razer mode
-                connection.switch_razer(self.server, device, True)
-
-                # Initialize with black colors
-                previous_colors = [(0, 0, 0)] * 10
-
-                while not self.stop_event.is_set():
+                print("[GUI Monitor Sync] Starting sync task...")
+                # Enable Razer mode on all devices
+                for device in self.all_devices:
                     try:
-                        # This code is adapted from monitor.py's start() function
-                        colors = []
-                        screen = monitor.ss.grab()
+                        print(f"[GUI Monitor Sync] Enabling Razer mode on {device.get('model', 'Unknown')}")
+                        connection.switch_razer(self.server, device, True)
+                        print(f"[GUI Monitor Sync] Razer mode enabled on {device.get('model', 'Unknown')}")
+                    except Exception as e:
+                        self.set_status(f"Error enabling Razer mode on {device.get('model', 'Unknown')}: {str(e)}")
+                        print(f"[GUI Monitor Sync] ERROR enabling Razer mode: {e}")
+
+                # Initialize with placeholder (will be set on first frame)
+                num_leds = GENERAL.nled
+                previous_colors = None
+
+                # Initialize screen grabber
+                print(f"[GUI Monitor Sync] Initializing screen grabber for {num_leds} LEDs...")
+                screen_grab = monitor.ScreenGrab()
+                print("[GUI Monitor Sync] Screen grabber initialized")
+                device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
+                self.set_status(f"Monitor sync running on {len(self.all_devices)} device(s) ({device_names}) with {num_leds} LEDs")
+
+                frame_count = 0
+                while not self.stop_event.is_set():
+                    frame_count += 1
+                    try:
+                        # Capture screen and sample colors
+                        screen = screen_grab.capture()
                         if screen is None:
+                            if frame_count == 1:
+                                print("[GUI Monitor Sync] ERROR: Screen capture returned None!")
                             continue
 
-                        screen = monitor.Image.fromarray(screen)
-                        width, height = screen.size
+                        if frame_count == 1:
+                            print(f"[GUI Monitor Sync] Screen captured successfully")
 
-                        top, bottom = int(height / 4 * 2), int(height / 4 * 3)
-
-                        for x in range(4):
-                            img = screen.crop(
-                                (int(width / 4 * x), 0, int(width / 4 * (x + 1)), top)
-                            )
-                            point = (int(img.size[0] / 2), int(img.size[1] / 2))
-                            colors.append(img.getpixel(point))
-                        colors.reverse()
-                        img = screen.crop((0, top, int(width / 4), bottom))
-                        point = (int(img.size[0] / 2), int(img.size[1] / 2))
-                        colors.append(img.getpixel(point))
-                        for x in range(4):
-                            img = screen.crop(
-                                (
-                                    int(width / 4 * x),
-                                    bottom,
-                                    int(width / 4 * (x + 1)),
-                                    height,
-                                )
-                            )
-                            point = (int(img.size[0] / 2), int(img.size[1] / 2))
-                            colors.append(img.getpixel(point))
-                        img = screen.crop((int((width / 4 * 3)), top, width, bottom))
-                        colors.append(img.getpixel(point))
+                        # Sample colors from screen regions to fill all LEDs
+                        colors = monitor.sample_screen_colors(screen, num_leds)
 
                         # Apply brightness to colors
                         colors = monitor.apply_brightness(colors, BRIGHTNESS.monitor)
 
-                        # Apply smooth transition
-                        monitor.smooth_transition(
-                            self.server, device, previous_colors, colors
-                        )
+                        if frame_count == 1:
+                            print(f"[GUI Monitor Sync] After brightness: {colors[:5]}...")
 
-                        # Update previous colors
-                        previous_colors = colors
+                        # On first frame, send colors directly without interpolation
+                        if previous_colors is None:
+                            print("[GUI Monitor Sync] First frame - sending colors directly (no interpolation)")
+                            previous_colors = colors
+                            # Send directly to all devices
+                            for device in self.all_devices:
+                                try:
+                                    encoded_data = utils.convert_colors(colors)
+                                    connection.send_razer_data(self.server, device, encoded_data)
+                                    print(f"[GUI Monitor Sync] Direct send to {device.get('model', 'Unknown')}: {colors[:3]}...")
+                                except Exception as e:
+                                    self.set_status(f"Error syncing {device.get('model', 'Unknown')}: {str(e)}")
+                                    print(f"[GUI Monitor Sync] ERROR syncing {device.get('model', 'Unknown')}: {e}")
+                        else:
+                            # Send to all devices with smooth transition
+                            for device in self.all_devices:
+                                try:
+                                    # Apply smooth transition with faster settings for responsive UI
+                                    monitor.smooth_transition(
+                                        self.server, device, previous_colors, colors, steps=3, delay=0.002
+                                    )
+                                except Exception as e:
+                                    self.set_status(f"Error syncing {device.get('model', 'Unknown')}: {str(e)}")
+                                    print(f"[GUI Monitor Sync] ERROR syncing {device.get('model', 'Unknown')}: {e}")
+
+                            # Update previous colors
+                            previous_colors = colors
                     except Exception as e:
                         self.set_status(f"Error in monitor sync: {str(e)}")
+                        print(f"[GUI Monitor Sync] Frame {frame_count} ERROR: {e}")
                         time.sleep(1)  # Avoid tight loop on error
             except Exception as e:
                 self.set_status(f"Monitor sync error: {str(e)}")
+                print(f"[GUI Monitor Sync] Critical error: {e}")
             finally:
                 self.current_sync_mode = None
                 self.set_status("Monitor sync stopped")
+                print("[GUI Monitor Sync] Sync task stopped")
 
         self.sync_thread = threading.Thread(target=sync_task)
         self.sync_thread.daemon = True
         self.sync_thread.start()
+        device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
         self.set_status(
-            f"Monitor sync started with {device.get('model', 'Unknown')} at {int(self.monitor_brightness * 100)}% brightness"
+            f"Monitor sync started with {len(self.all_devices)} device(s) ({device_names}) at {int(self.monitor_brightness * 100)}% brightness"
         )
 
     def start_music_sync(self) -> None:
-        """Start music synchronization."""
-        device = self.get_selected_device()
-        if device is None:
-            self.set_status("No device selected. Please select a device first.")
+        """Start music synchronization to all devices."""
+        # Reload devices to ensure we have the latest list
+        try:
+            settings = devices.get_data()
+            self.all_devices = settings["devices"]
+        except Exception as e:
+            self.set_status(f"Error loading devices: {str(e)}")
+            return
+
+        if not self.all_devices:
+            self.set_status("No devices available. Please discover devices first.")
             return
 
         if self.sync_thread and self.sync_thread.is_alive():
@@ -233,11 +311,17 @@ class SyncController:
                 if platform.system() == "Windows":
                     CoInitializeEx(0)
 
-                # Enable Razer mode
-                connection.switch_razer(self.server, device, True)
+                # Enable Razer mode on all devices
+                for device in self.all_devices:
+                    try:
+                        connection.switch_razer(self.server, device, True)
+                    except Exception as e:
+                        self.set_status(f"Error enabling Razer mode on {device.get('model', 'Unknown')}: {str(e)}")
 
                 # Initialize current colors
                 COLORS.current = [(0, 0, 0)] * GENERAL.nled
+                device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
+                self.set_status(f"Music sync running on {len(self.all_devices)} device(s) ({device_names})")
 
                 while not self.stop_event.is_set():
                     try:
@@ -271,12 +355,17 @@ class SyncController:
                                 COLORS.current, BRIGHTNESS.music
                             )
 
-                            # Convert colors and send to device
+                            # Convert colors and send to all devices
                             from ...utils import convert_colors
+                            encoded_colors = convert_colors(adjusted_colors)
 
-                            connection.send_razer_data(
-                                self.server, device, convert_colors(adjusted_colors)
-                            )
+                            for device in self.all_devices:
+                                try:
+                                    connection.send_razer_data(
+                                        self.server, device, encoded_colors
+                                    )
+                                except Exception as e:
+                                    self.set_status(f"Error syncing {device.get('model', 'Unknown')}: {str(e)}")
 
                     except Exception as e:
                         self.set_status(f"Error in music sync: {str(e)}")
@@ -296,8 +385,9 @@ class SyncController:
         self.sync_thread = threading.Thread(target=sync_task)
         self.sync_thread.daemon = True
         self.sync_thread.start()
+        device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
         self.set_status(
-            f"Music sync started with {device.get('model', 'Unknown')} at {int(self.music_brightness * 100)}% brightness"
+            f"Music sync started with {len(self.all_devices)} device(s) ({device_names}) at {int(self.music_brightness * 100)}% brightness"
         )
 
     def stop_sync(self) -> None:

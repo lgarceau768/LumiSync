@@ -53,9 +53,13 @@ def parseMessages(messages: List[str]) -> Dict[str, Any]:
     logger.info(f"Parsing {len(messages)} device message(s)")
     devices = parse(messages)
 
+    # Preserve existing settings like color_rotation if available
+    from .config.options import GENERAL
+
     settings = {
         "devices": devices,
         "selectedDevice": 0,
+        "color_rotation": GENERAL.color_rotation,
         "time": time.time()
     }
 
@@ -70,9 +74,16 @@ def writeJSON(settings: Dict[str, Any]) -> None:
 def get_data() -> Dict[str, Any]:
     """Get device data from settings file or by requesting new data."""
     try:
+        from .config.options import GENERAL
+
         logger.info("Attempting to load device data from settings.json")
         with open("settings.json", "r") as f:
             data = json.load(f)
+
+        # Load color_rotation from settings if available
+        if "color_rotation" in data:
+            GENERAL.color_rotation = data["color_rotation"]
+            logger.info(f"Loaded color_rotation: {GENERAL.color_rotation}°")
 
         if time.time() - data.get("time", 0) > 86400:
             logger.info("Device data is older than 24 hours, requesting new data...")
