@@ -40,3 +40,12 @@ COLORS = SimpleNamespace(previous=[], current=[])
 
 # NOTE: Brightness settings for different sync modes (percent)
 BRIGHTNESS = SimpleNamespace(monitor=0.75, music=0.85)
+
+# Device configuration defaults
+DEVICE_CONFIG = SimpleNamespace(
+    position="center",  # top, bottom, left, right, center
+    sync_mode="monitor",  # monitor, music, edge, zone, action
+    brightness=0.75,  # 0.0-1.0
+    nled=4,  # Number of LEDs
+    color_rotation=0,  # 0, 90, 180, 270
+)

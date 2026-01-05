@@ -32,11 +32,12 @@ class ModesTab(BaseFrame):
 
         # Configure grid for responsive layout
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(3, weight=1)
 
         # Create widgets
         self.create_header()
         self.create_sync_modes()
+        self.create_gaming_modes()
         self.create_sync_controls()
 
         # Bind configure event to handle window resize
@@ -57,13 +58,20 @@ class ModesTab(BaseFrame):
         width = self.winfo_width()
         if width > 10:  # Avoid division by zero or negative values
             # Calculate appropriate wraplength based on window width
-            panel_width = max(200, (width - 60) // 2)  # Account for padding
+            panel_width_sync = max(200, (width - 60) // 2)  # Account for padding (2 columns)
+            panel_width_gaming = max(180, (width - 90) // 3)  # Account for padding (3 columns)
 
             # Update any labels with wraplength
             if hasattr(self, "monitor_desc"):
-                self.monitor_desc.configure(wraplength=panel_width)
+                self.monitor_desc.configure(wraplength=panel_width_sync)
             if hasattr(self, "music_desc"):
-                self.music_desc.configure(wraplength=panel_width)
+                self.music_desc.configure(wraplength=panel_width_sync)
+            if hasattr(self, "edge_desc"):
+                self.edge_desc.configure(wraplength=panel_width_gaming)
+            if hasattr(self, "zone_desc"):
+                self.zone_desc.configure(wraplength=panel_width_gaming)
+            if hasattr(self, "action_desc"):
+                self.action_desc.configure(wraplength=panel_width_gaming)
 
     def adjust_height_distribution(self):
         """Adjust height distribution based on window height."""
@@ -71,19 +79,22 @@ class ModesTab(BaseFrame):
         if height > 10:  # Avoid division by zero or negative values
             # Set dynamic row weights based on available height
             # Give more space to controls section when window is taller
-            if height > 600:
-                self.grid_rowconfigure(2, weight=3)  # More space for controls
+            if height > 700:
                 self.grid_rowconfigure(0, weight=1)  # Header
                 self.grid_rowconfigure(1, weight=2)  # Sync modes
-            elif height > 400:
-                self.grid_rowconfigure(2, weight=2)  # Controls
+                self.grid_rowconfigure(2, weight=2)  # Gaming modes
+                self.grid_rowconfigure(3, weight=3)  # More space for controls
+            elif height > 500:
                 self.grid_rowconfigure(0, weight=1)  # Header
                 self.grid_rowconfigure(1, weight=2)  # Sync modes
+                self.grid_rowconfigure(2, weight=1)  # Gaming modes
+                self.grid_rowconfigure(3, weight=2)  # Controls
             else:
                 # For smaller heights, distribute more evenly
                 self.grid_rowconfigure(0, weight=1)  # Header
                 self.grid_rowconfigure(1, weight=1)  # Sync modes
-                self.grid_rowconfigure(2, weight=1)  # Controls
+                self.grid_rowconfigure(2, weight=1)  # Gaming modes
+                self.grid_rowconfigure(3, weight=1)  # Controls
 
     def load_icons(self):
         """Load icon images for buttons."""
@@ -353,6 +364,114 @@ class ModesTab(BaseFrame):
         )
         music_button.grid(row=3, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD)
 
+    def create_gaming_modes(self):
+        """Create the gaming synchronization modes section."""
+        gaming_frame = ctk.CTkFrame(self)
+        gaming_frame.grid(
+            row=2, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="ew"
+        )
+
+        # Configure grid for 3 equal columns
+        gaming_frame.grid_columnconfigure((0, 1, 2), weight=1, uniform="column")
+
+        # Gaming modes header
+        gaming_label = ctk.CTkLabel(
+            gaming_frame, text="Gaming Sync Modes", font=("Segoe UI", 14, "bold")
+        )
+        gaming_label.grid(
+            row=0, column=0, columnspan=3, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="ew"
+        )
+
+        # Edge Lighting Mode
+        edge_frame = ctk.CTkFrame(gaming_frame)
+        edge_frame.grid(
+            row=1, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="nsew"
+        )
+        edge_frame.grid_columnconfigure(0, weight=1)
+
+        edge_label = ctk.CTkLabel(
+            edge_frame, text="Edge Lighting", font=("Segoe UI", 12, "bold")
+        )
+        edge_label.grid(row=0, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="ew")
+
+        self.edge_desc = ctk.CTkLabel(
+            edge_frame,
+            text="Sample ambient colors from screen edges.",
+            wraplength=180,
+        )
+        self.edge_desc.grid(
+            row=1, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="ew"
+        )
+
+        edge_button = ctk.CTkButton(
+            edge_frame,
+            text="Start Edge Sync",
+            command=self.start_edge_sync,
+            width=LARGE_BUTTON[0],
+            height=LARGE_BUTTON[1],
+        )
+        edge_button.grid(row=2, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD)
+
+        # Zone Lighting Mode
+        zone_frame = ctk.CTkFrame(gaming_frame)
+        zone_frame.grid(
+            row=1, column=1, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="nsew"
+        )
+        zone_frame.grid_columnconfigure(0, weight=1)
+
+        zone_label = ctk.CTkLabel(
+            zone_frame, text="Zone Lighting", font=("Segoe UI", 12, "bold")
+        )
+        zone_label.grid(row=0, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="ew")
+
+        self.zone_desc = ctk.CTkLabel(
+            zone_frame,
+            text="Divide screen into zones for targeted lighting.",
+            wraplength=180,
+        )
+        self.zone_desc.grid(
+            row=1, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="ew"
+        )
+
+        zone_button = ctk.CTkButton(
+            zone_frame,
+            text="Start Zone Sync",
+            command=self.start_zone_sync,
+            width=LARGE_BUTTON[0],
+            height=LARGE_BUTTON[1],
+        )
+        zone_button.grid(row=2, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD)
+
+        # Action Detection Mode
+        action_frame = ctk.CTkFrame(gaming_frame)
+        action_frame.grid(
+            row=1, column=2, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="nsew"
+        )
+        action_frame.grid_columnconfigure(0, weight=1)
+
+        action_label = ctk.CTkLabel(
+            action_frame, text="Action Flash", font=("Segoe UI", 12, "bold")
+        )
+        action_label.grid(row=0, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="ew")
+
+        self.action_desc = ctk.CTkLabel(
+            action_frame,
+            text="Reactive lighting triggered by bright flashes.",
+            wraplength=180,
+        )
+        self.action_desc.grid(
+            row=1, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="ew"
+        )
+
+        action_button = ctk.CTkButton(
+            action_frame,
+            text="Start Action Sync",
+            command=self.start_action_sync,
+            width=LARGE_BUTTON[0],
+            height=LARGE_BUTTON[1],
+        )
+        action_button.grid(row=2, column=0, padx=MEDIUM_PAD, pady=MEDIUM_PAD)
+
     def update_monitor_brightness(self, value):
         """Update monitor brightness setting."""
         # Update the controller (without status callback)
@@ -375,11 +494,26 @@ class ModesTab(BaseFrame):
         self.sync_controller.set_color_rotation(rotation)
         self.app.set_status(f"Color rotation set to {rotation}°")
 
+    def start_edge_sync(self):
+        """Start edge lighting synchronization."""
+        self.sync_controller.start_edge_sync()
+        self.update_status()
+
+    def start_zone_sync(self):
+        """Start zone lighting synchronization."""
+        self.sync_controller.start_zone_sync()
+        self.update_status()
+
+    def start_action_sync(self):
+        """Start action/effect detection synchronization."""
+        self.sync_controller.start_action_sync()
+        self.update_status()
+
     def create_sync_controls(self):
         """Create the synchronization controls section."""
         controls_frame = ctk.CTkFrame(self)
         controls_frame.grid(
-            row=2, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="nsew"
+            row=3, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="nsew"
         )
 
         # Configure grid

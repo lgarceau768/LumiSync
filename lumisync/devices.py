@@ -53,8 +53,16 @@ def parseMessages(messages: List[str]) -> Dict[str, Any]:
     logger.info(f"Parsing {len(messages)} device message(s)")
     devices = parse(messages)
 
-    # Preserve existing settings like color_rotation if available
-    from .config.options import GENERAL
+    # Preserve existing settings and apply device config defaults
+    from .config.options import GENERAL, DEVICE_CONFIG
+
+    # Apply device config defaults to new devices
+    for device in devices:
+        device.setdefault("position", DEVICE_CONFIG.position)
+        device.setdefault("sync_mode", DEVICE_CONFIG.sync_mode)
+        device.setdefault("brightness", DEVICE_CONFIG.brightness)
+        device.setdefault("nled", DEVICE_CONFIG.nled)
+        device.setdefault("color_rotation", DEVICE_CONFIG.color_rotation)
 
     settings = {
         "devices": devices,
@@ -74,7 +82,7 @@ def writeJSON(settings: Dict[str, Any]) -> None:
 def get_data() -> Dict[str, Any]:
     """Get device data from settings file or by requesting new data."""
     try:
-        from .config.options import GENERAL
+        from .config.options import GENERAL, DEVICE_CONFIG
 
         logger.info("Attempting to load device data from settings.json")
         with open("settings.json", "r") as f:
@@ -84,6 +92,14 @@ def get_data() -> Dict[str, Any]:
         if "color_rotation" in data:
             GENERAL.color_rotation = data["color_rotation"]
             logger.info(f"Loaded color_rotation: {GENERAL.color_rotation}°")
+
+        # Apply device config defaults to existing devices (for backward compatibility)
+        for device in data.get("devices", []):
+            device.setdefault("position", DEVICE_CONFIG.position)
+            device.setdefault("sync_mode", DEVICE_CONFIG.sync_mode)
+            device.setdefault("brightness", DEVICE_CONFIG.brightness)
+            device.setdefault("nled", DEVICE_CONFIG.nled)
+            device.setdefault("color_rotation", DEVICE_CONFIG.color_rotation)
 
         if time.time() - data.get("time", 0) > 86400:
             logger.info("Device data is older than 24 hours, requesting new data...")

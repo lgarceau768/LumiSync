@@ -311,29 +311,29 @@ class DevicesTab(BaseFrame):
         self.device_listbox.bind("<<ListboxSelect>>", self.on_device_select)
 
     def create_device_details(self):
-        """Create the device details section."""
+        """Create the device details section with editable configuration."""
         details_frame = ctk.CTkFrame(self)
         details_frame.grid(
             row=3, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="nsew"
         )
 
-        # Configure grid
+        # Configure grid - allow scrolling
         details_frame.grid_columnconfigure(1, weight=1)
+        details_frame.grid_rowconfigure(10, weight=1)  # Empty row for expansion
 
         # Header
         details_label = ctk.CTkLabel(
-            details_frame, text="Device Details", font=("Segoe UI", 12, "bold")
+            details_frame, text="Device Details & Configuration", font=("Segoe UI", 12, "bold")
         )
         details_label.grid(
             row=0, column=0, columnspan=2, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="w"
         )
 
-        # Device details
+        # Device info (read-only)
         model_label = ctk.CTkLabel(details_frame, text="Model:")
         model_label.grid(
             row=1, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
         )
-
         self.model_value = ctk.CTkLabel(details_frame, text="-")
         self.model_value.grid(
             row=1, column=1, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
@@ -343,7 +343,6 @@ class DevicesTab(BaseFrame):
         mac_label.grid(
             row=2, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
         )
-
         self.mac_value = ctk.CTkLabel(details_frame, text="-")
         self.mac_value.grid(
             row=2, column=1, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
@@ -353,7 +352,6 @@ class DevicesTab(BaseFrame):
         ip_label.grid(
             row=3, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
         )
-
         self.ip_value = ctk.CTkLabel(details_frame, text="-")
         self.ip_value.grid(
             row=3, column=1, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
@@ -363,7 +361,6 @@ class DevicesTab(BaseFrame):
         port_label.grid(
             row=4, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
         )
-
         self.port_value = ctk.CTkLabel(details_frame, text="-")
         self.port_value.grid(
             row=4, column=1, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
@@ -373,10 +370,90 @@ class DevicesTab(BaseFrame):
         source_label.grid(
             row=5, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
         )
-
         self.source_value = ctk.CTkLabel(details_frame, text="-")
         self.source_value.grid(
             row=5, column=1, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
+        )
+
+        # Configuration section (editable)
+        config_label = ctk.CTkLabel(
+            details_frame, text="Configuration", font=("Segoe UI", 11, "bold")
+        )
+        config_label.grid(
+            row=6, column=0, columnspan=2, padx=MEDIUM_PAD, pady=(MEDIUM_PAD * 2, MEDIUM_PAD), sticky="w"
+        )
+
+        # Position dropdown
+        position_label = ctk.CTkLabel(details_frame, text="Position:")
+        position_label.grid(
+            row=7, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
+        )
+        self.position_var = ctk.StringVar(value="center")
+        self.position_dropdown = ctk.CTkComboBox(
+            details_frame,
+            values=["top", "bottom", "left", "right", "center"],
+            variable=self.position_var,
+            state="readonly",
+            width=150,
+        )
+        self.position_dropdown.grid(
+            row=7, column=1, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
+        )
+
+        # Sync mode dropdown
+        mode_label = ctk.CTkLabel(details_frame, text="Sync Mode:")
+        mode_label.grid(
+            row=8, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
+        )
+        self.sync_mode_var = ctk.StringVar(value="monitor")
+        self.sync_mode_dropdown = ctk.CTkComboBox(
+            details_frame,
+            values=["monitor", "music", "edge", "zone", "action"],
+            variable=self.sync_mode_var,
+            state="readonly",
+            width=150,
+        )
+        self.sync_mode_dropdown.grid(
+            row=8, column=1, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
+        )
+
+        # Brightness slider
+        brightness_label = ctk.CTkLabel(details_frame, text="Brightness:")
+        brightness_label.grid(
+            row=9, column=0, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="w"
+        )
+
+        brightness_frame = ctk.CTkFrame(details_frame)
+        brightness_frame.grid(
+            row=9, column=1, padx=MEDIUM_PAD, pady=(0, MEDIUM_PAD), sticky="ew"
+        )
+        brightness_frame.grid_columnconfigure(0, weight=1)
+
+        self.brightness_var = ctk.DoubleVar(value=0.75)
+        self.brightness_slider = ctk.CTkSlider(
+            brightness_frame,
+            from_=0.1,
+            to=1.0,
+            number_of_steps=90,
+            variable=self.brightness_var,
+            command=self.update_brightness_label,
+        )
+        self.brightness_slider.grid(row=0, column=0, sticky="ew")
+
+        self.brightness_label = ctk.CTkLabel(brightness_frame, text="75%", width=40)
+        self.brightness_label.grid(row=0, column=1, padx=(MEDIUM_PAD, 0))
+
+        # Save configuration button
+        save_button = ctk.CTkButton(
+            details_frame,
+            text="Save Configuration",
+            command=self.save_device_config,
+            fg_color="#27AE60",
+            hover_color="#229954",
+            height=32,
+        )
+        save_button.grid(
+            row=11, column=0, columnspan=2, padx=MEDIUM_PAD, pady=MEDIUM_PAD, sticky="ew"
         )
 
     def load_devices(self):
@@ -416,7 +493,7 @@ class DevicesTab(BaseFrame):
                 self.update_device_details(device)
 
     def update_device_details(self, device: Dict[str, Any]):
-        """Update the device details display."""
+        """Update the device details display and populate configuration controls."""
         # Use lowercase key names that match our connection.py implementation
         self.model_value.configure(text=device.get("model", "-"))
         self.mac_value.configure(text=device.get("mac", "-"))
@@ -425,3 +502,58 @@ class DevicesTab(BaseFrame):
         self.source_value.configure(
             text="Manual" if device.get("manual") else "Auto-discovered"
         )
+
+        # Update configuration controls with device values
+        self.position_var.set(device.get("position", "center"))
+        self.sync_mode_var.set(device.get("sync_mode", "monitor"))
+        brightness = device.get("brightness", 0.75)
+        self.brightness_var.set(brightness)
+        self.update_brightness_label(brightness)
+
+    def update_brightness_label(self, value):
+        """Update brightness percentage label when slider moves."""
+        percentage = int(float(value) * 100)
+        self.brightness_label.configure(text=f"{percentage}%")
+
+    def save_device_config(self):
+        """Save device configuration to settings.json."""
+        selection = self.device_listbox.curselection()
+        if not selection:
+            messagebox.showwarning(
+                "No Selection",
+                "Please select a device to save configuration."
+            )
+            return
+
+        index = selection[0]
+        device = self.device_controller.devices[index]
+
+        # Update device with configuration values
+        device["position"] = self.position_var.get()
+        device["sync_mode"] = self.sync_mode_var.get()
+        device["brightness"] = self.brightness_var.get()
+
+        # Save to settings.json
+        try:
+            import time
+            from ...devices import writeJSON
+            from ...config.options import GENERAL
+
+            settings = {
+                "devices": self.device_controller.devices,
+                "selectedDevice": self.device_controller.selected_device_index,
+                "color_rotation": GENERAL.color_rotation,
+                "time": time.time()
+            }
+            writeJSON(settings)
+            messagebox.showinfo(
+                "Success",
+                f"Configuration saved for {device.get('model', 'Device')}."
+            )
+            self.app.set_status(f"Configuration saved for {device.get('model', 'Device')}")
+        except Exception as e:
+            messagebox.showerror(
+                "Error",
+                f"Failed to save configuration: {str(e)}"
+            )
+            self.app.set_status(f"Error saving configuration: {str(e)}")

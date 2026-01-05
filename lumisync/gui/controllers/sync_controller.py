@@ -15,6 +15,9 @@ if platform.system() == "Windows":
 from ... import connection, devices, utils
 from ...config.options import AUDIO, BRIGHTNESS, COLORS, GENERAL
 from ...sync import monitor, music
+from ...utils import get_logger
+
+logger = get_logger("sync_controller")
 
 
 class SyncController:
@@ -389,6 +392,216 @@ class SyncController:
         self.set_status(
             f"Music sync started with {len(self.all_devices)} device(s) ({device_names}) at {int(self.music_brightness * 100)}% brightness"
         )
+
+    def start_edge_sync(self) -> None:
+        """Start edge lighting synchronization to all devices."""
+        # Reload devices to ensure we have the latest list
+        try:
+            settings = devices.get_data()
+            self.all_devices = settings["devices"]
+        except Exception as e:
+            self.set_status(f"Error loading devices: {str(e)}")
+            return
+
+        if not self.all_devices:
+            self.set_status("No devices available. Please discover devices first.")
+            return
+
+        if self.sync_thread and self.sync_thread.is_alive():
+            self.stop_sync()
+
+        self._ensure_server()
+        self.stop_event.clear()
+        self.current_sync_mode = "edge"
+        self.set_status("Starting edge lighting sync...")
+
+        def sync_task():
+            try:
+                from ...sync.edge import EdgeSyncMode
+
+                # Enable Razer mode on all devices
+                for device in self.all_devices:
+                    try:
+                        connection.switch_razer(self.server, device, True)
+                    except Exception as e:
+                        self.set_status(f"Error enabling Razer mode on {device.get('model', 'Unknown')}: {str(e)}")
+
+                device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
+                self.set_status(f"Edge lighting sync running on {len(self.all_devices)} device(s) ({device_names})")
+
+                # Create edge sync mode instance with first device
+                device = self.all_devices[0]
+                position = device.get("position", "center")
+                edge_mode = EdgeSyncMode(self.server, device, position)
+
+                while not self.stop_event.is_set():
+                    try:
+                        data = edge_mode.capture_data()
+                        colors = edge_mode.generate_colors(data)
+
+                        # Send to all devices
+                        for device in self.all_devices:
+                            try:
+                                encoded_data = utils.convert_colors(colors)
+                                connection.send_razer_data(self.server, device, encoded_data)
+                            except Exception as e:
+                                self.set_status(f"Error syncing {device.get('model', 'Unknown')}: {str(e)}")
+
+                    except Exception as e:
+                        self.set_status(f"Error in edge sync: {str(e)}")
+                        time.sleep(0.1)
+
+            except Exception as e:
+                self.set_status(f"Edge sync error: {str(e)}")
+            finally:
+                self.current_sync_mode = None
+                self.set_status("Edge lighting sync stopped")
+
+        self.sync_thread = threading.Thread(target=sync_task)
+        self.sync_thread.daemon = True
+        self.sync_thread.start()
+        device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
+        self.set_status(f"Edge lighting sync started with {len(self.all_devices)} device(s) ({device_names})")
+
+    def start_zone_sync(self) -> None:
+        """Start zone lighting synchronization to all devices."""
+        # Reload devices to ensure we have the latest list
+        try:
+            settings = devices.get_data()
+            self.all_devices = settings["devices"]
+        except Exception as e:
+            self.set_status(f"Error loading devices: {str(e)}")
+            return
+
+        if not self.all_devices:
+            self.set_status("No devices available. Please discover devices first.")
+            return
+
+        if self.sync_thread and self.sync_thread.is_alive():
+            self.stop_sync()
+
+        self._ensure_server()
+        self.stop_event.clear()
+        self.current_sync_mode = "zone"
+        self.set_status("Starting zone lighting sync...")
+
+        def sync_task():
+            try:
+                from ...sync.zone import ZoneSyncMode
+
+                # Enable Razer mode on all devices
+                for device in self.all_devices:
+                    try:
+                        connection.switch_razer(self.server, device, True)
+                    except Exception as e:
+                        self.set_status(f"Error enabling Razer mode on {device.get('model', 'Unknown')}: {str(e)}")
+
+                device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
+                self.set_status(f"Zone lighting sync running on {len(self.all_devices)} device(s) ({device_names})")
+
+                # Create zone sync mode instance with first device
+                device = self.all_devices[0]
+                position = device.get("position", "center")
+                zone_mode = ZoneSyncMode(self.server, device, position)
+
+                while not self.stop_event.is_set():
+                    try:
+                        data = zone_mode.capture_data()
+                        colors = zone_mode.generate_colors(data)
+
+                        # Send to all devices
+                        for device in self.all_devices:
+                            try:
+                                encoded_data = utils.convert_colors(colors)
+                                connection.send_razer_data(self.server, device, encoded_data)
+                            except Exception as e:
+                                self.set_status(f"Error syncing {device.get('model', 'Unknown')}: {str(e)}")
+
+                    except Exception as e:
+                        self.set_status(f"Error in zone sync: {str(e)}")
+                        time.sleep(0.1)
+
+            except Exception as e:
+                self.set_status(f"Zone sync error: {str(e)}")
+            finally:
+                self.current_sync_mode = None
+                self.set_status("Zone lighting sync stopped")
+
+        self.sync_thread = threading.Thread(target=sync_task)
+        self.sync_thread.daemon = True
+        self.sync_thread.start()
+        device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
+        self.set_status(f"Zone lighting sync started with {len(self.all_devices)} device(s) ({device_names})")
+
+    def start_action_sync(self) -> None:
+        """Start action/effect detection synchronization to all devices."""
+        # Reload devices to ensure we have the latest list
+        try:
+            settings = devices.get_data()
+            self.all_devices = settings["devices"]
+        except Exception as e:
+            self.set_status(f"Error loading devices: {str(e)}")
+            return
+
+        if not self.all_devices:
+            self.set_status("No devices available. Please discover devices first.")
+            return
+
+        if self.sync_thread and self.sync_thread.is_alive():
+            self.stop_sync()
+
+        self._ensure_server()
+        self.stop_event.clear()
+        self.current_sync_mode = "action"
+        self.set_status("Starting action detection sync...")
+
+        def sync_task():
+            try:
+                from ...sync.action import ActionSyncMode
+
+                # Enable Razer mode on all devices
+                for device in self.all_devices:
+                    try:
+                        connection.switch_razer(self.server, device, True)
+                    except Exception as e:
+                        self.set_status(f"Error enabling Razer mode on {device.get('model', 'Unknown')}: {str(e)}")
+
+                device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
+                self.set_status(f"Action detection sync running on {len(self.all_devices)} device(s) ({device_names})")
+
+                # Create action sync mode instance with first device
+                device = self.all_devices[0]
+                position = device.get("position", "center")
+                action_mode = ActionSyncMode(self.server, device, position)
+
+                while not self.stop_event.is_set():
+                    try:
+                        data = action_mode.capture_data()
+                        colors = action_mode.generate_colors(data)
+
+                        # Send to all devices
+                        for device in self.all_devices:
+                            try:
+                                encoded_data = utils.convert_colors(colors)
+                                connection.send_razer_data(self.server, device, encoded_data)
+                            except Exception as e:
+                                self.set_status(f"Error syncing {device.get('model', 'Unknown')}: {str(e)}")
+
+                    except Exception as e:
+                        self.set_status(f"Error in action sync: {str(e)}")
+                        time.sleep(0.1)
+
+            except Exception as e:
+                self.set_status(f"Action sync error: {str(e)}")
+            finally:
+                self.current_sync_mode = None
+                self.set_status("Action detection sync stopped")
+
+        self.sync_thread = threading.Thread(target=sync_task)
+        self.sync_thread.daemon = True
+        self.sync_thread.start()
+        device_names = ", ".join([d.get('model', 'Unknown') for d in self.all_devices])
+        self.set_status(f"Action detection sync started with {len(self.all_devices)} device(s) ({device_names})")
 
     def stop_sync(self) -> None:
         """Stop any active synchronization."""
